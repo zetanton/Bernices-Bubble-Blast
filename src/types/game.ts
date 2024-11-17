@@ -1,8 +1,12 @@
+export type BubbleColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
+
 export interface Bubble {
+  color: BubbleColor;
+  id: string;
   x: number;
   y: number;
-  color: string;
-  id: string;
+  isFalling?: boolean;
+  jiggle?: number;
 }
 
 export interface ShootingBubble extends Bubble {
@@ -10,9 +14,14 @@ export interface ShootingBubble extends Bubble {
   dy: number;
 }
 
+export interface GridBubble extends Bubble {
+  row: number;
+  col: number;
+}
+
 export interface PopAnimation {
   x: number;
   y: number;
-  color: string;
+  color: BubbleColor;
   progress: number;
 }

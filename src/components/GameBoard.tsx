@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type Bubble, type PopAnimation } from '../types/game';
 
 interface GameBoardProps {
@@ -10,20 +10,34 @@ interface GameBoardProps {
 
 export default function GameBoard({ bubbles, currentBubble, popAnimations, onShoot }: GameBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const BUBBLE_SIZE = 40;
-  const CANVAS_WIDTH = BUBBLE_SIZE * 10;
-  const CANVAS_HEIGHT = BUBBLE_SIZE * 15;
+  const BUBBLE_SIZE = 35;
+  const CANVAS_WIDTH = BUBBLE_SIZE * 8;
+  const CANVAS_HEIGHT = BUBBLE_SIZE * 12;
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isTouching, setIsTouching] = useState(false);
 
-  const drawBubble = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, size: number = BUBBLE_SIZE) => {
+  const drawBubble = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, size: number = BUBBLE_SIZE, jiggle: number = 0, fadeOut?: boolean) => {
     const centerX = x + size/2;
     const centerY = y + size/2;
     const radius = size/2 - 2;
 
-    // Main bubble
+    // Apply fade out opacity
+    const opacity = fadeOut ? 0.5 : 1;
+
+    // Apply jiggle offset
+    const jiggleOffset = jiggle * Math.sin(Date.now() / 50) * 2;
+    const jiggleX = centerX + jiggleOffset;
+    const jiggleY = centerY + jiggleOffset;
+
+    // Main bubble with opacity
+    ctx.globalAlpha = opacity;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.arc(jiggleX, jiggleY, radius, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
+
+    // Reset opacity for other elements
+    ctx.globalAlpha = 1;
 
     // Outer glow
     const glowGradient = ctx.createRadialGradient(
@@ -90,7 +104,7 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
 
     // Draw existing bubbles
     bubbles.forEach(bubble => {
-      drawBubble(ctx, bubble.x, bubble.y, bubble.color);
+      drawBubble(ctx, bubble.x, bubble.y, bubble.color, BUBBLE_SIZE, bubble.jiggle);
     });
 
     // Draw pop animations
@@ -114,9 +128,15 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
         anim.y + BUBBLE_SIZE/2,
         radius
       );
-      gradient.addColorStop(0, `${anim.color}ff`);
-      gradient.addColorStop(0.7, `${anim.color}88`);
-      gradient.addColorStop(1, `${anim.color}00`);
+      const COLOR_MAP = {
+        'RED': '#ff0000',
+        'BLUE': '#0000ff',
+        'GREEN': '#00ff00',
+        'YELLOW': '#ffff00'
+      };
+      gradient.addColorStop(0, `${COLOR_MAP[anim.color as keyof typeof COLOR_MAP]}ff`);
+      gradient.addColorStop(0.7, `${COLOR_MAP[anim.color as keyof typeof COLOR_MAP]}88`);
+      gradient.addColorStop(1, `${COLOR_MAP[anim.color as keyof typeof COLOR_MAP]}00`);
       
       ctx.fillStyle = gradient;
       ctx.fill();
@@ -139,8 +159,8 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
 
     // Draw shooter guide line
     const rect = canvas.getBoundingClientRect();
-    const mouseX = (window.mouseX || canvas.width/2) - rect.left;
-    const mouseY = (window.mouseY || 0) - rect.top;
+    const mouseX = (mousePos.x || canvas.width/2) - rect.left;
+    const mouseY = (mousePos.y || 0) - rect.top;
     const shooterX = canvas.width/2;
     const shooterY = canvas.height - BUBBLE_SIZE/2;
     const angle = Math.atan2(mouseY - shooterY, mouseX - shooterX);
@@ -155,11 +175,10 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
     ctx.setLineDash([5, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
-  }, [bubbles, currentBubble, popAnimations]);
+  }, [bubbles, currentBubble, popAnimations, mousePos]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    window.mouseX = e.clientX;
-    window.mouseY = e.clientY;
+    setMousePos({ x: e.clientX, y: e.clientY });
   };
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -167,15 +186,78 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
+    
+    // Get click position relative to canvas
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
+    // Calculate angle from shooter position
     const shooterX = canvas.width / 2;
     const shooterY = canvas.height - BUBBLE_SIZE/2;
+    
+    // Calculate angle in radians
     const angle = Math.atan2(y - shooterY, x - shooterX);
     
     onShoot(angle);
   };
+
+  // Modify the touch event handlers
+  const handleTouchMove = (e: TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touch) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      setMousePos({ 
+        x: touch.clientX, 
+        y: Math.min(touch.clientY, rect.bottom - BUBBLE_SIZE * 2)
+      });
+    }
+  };
+
+  const handleTouchStart = (e: TouchEvent) => {
+    e.preventDefault();
+    setIsTouching(true);
+  };
+
+  const handleTouchEnd = (e: TouchEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (mousePos.x - rect.left) * scaleX;
+    const y = (mousePos.y - rect.top) * scaleY;
+    
+    const shooterX = canvas.width / 2;
+    const shooterY = canvas.height - BUBBLE_SIZE/2;
+    
+    const angle = Math.atan2(y - shooterY, x - shooterX);
+    
+    onShoot(angle);
+    setIsTouching(false);
+  };
+
+  // Update the event listener setup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [mousePos]);
 
   return (
     <canvas
@@ -184,7 +266,14 @@ export default function GameBoard({ bubbles, currentBubble, popAnimations, onSho
       height={CANVAS_HEIGHT}
       onClick={handleClick}
       onMouseMove={handleMouseMove}
-      className="bg-black/20 rounded-lg cursor-crosshair"
+      className={`bg-black/20 rounded-lg ${
+        isTouching ? 'ring-2 ring-white/50' : ''
+      }`}
+      style={{
+        maxWidth: '100%',
+        height: 'auto',
+        touchAction: 'none'
+      }}
     />
   );
 }
