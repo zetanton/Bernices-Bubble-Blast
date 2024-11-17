@@ -32,6 +32,7 @@ export function Game() {
   const [shotsRemaining, setShotsRemaining] = useState(0);
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
   const [isCompletingLevel, setIsCompletingLevel] = useState(false);
+  const [currentSelectPage, setCurrentSelectPage] = useState(0);
 
   useEffect(() => {
     const defaultPattern = ALL_STAGES[0].pattern;
@@ -353,7 +354,7 @@ export function Game() {
               return { ...stage, isCompleted: true };
             }
             if (stage.id === currentStage.id + 1) {
-              return { ...stage, isLocked: false };
+              return { ...stage, isLocked: false }; 
             }
             return stage;
           }));
@@ -383,6 +384,8 @@ export function Game() {
             stages={stages} 
             onStageSelect={handleStageSelect}
             onBack={() => setGameState('start')}
+            initialPage={currentSelectPage}
+            onPageChange={setCurrentSelectPage}
           />
           <button
             onClick={unlockAllStages}

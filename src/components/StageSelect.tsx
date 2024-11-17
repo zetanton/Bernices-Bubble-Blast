@@ -8,13 +8,21 @@ interface StageSelectProps {
   stages: Stage[];
   onStageSelect: (stageId: number) => void;
   onBack: () => void;
+  initialPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
 const STAGES_PER_PAGE = 9;
 
-export default function StageSelect({ stages, onStageSelect, onBack }: StageSelectProps) {
+export default function StageSelect({ 
+  stages, 
+  onStageSelect, 
+  onBack,
+  initialPage = 0,
+  onPageChange
+}: StageSelectProps) {
   const selectMusicRef = useRef<HTMLAudioElement | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(initialPage);
 
   const totalPages = Math.ceil(stages.length / STAGES_PER_PAGE);
   const paginatedStages = stages.slice(
@@ -48,6 +56,7 @@ export default function StageSelect({ stages, onStageSelect, onBack }: StageSele
     if (newPageStages.some(stage => !stage.isLocked)) {
       playSound('shot');
       setCurrentPage(newPage);
+      onPageChange?.(newPage);
     }
   };
 
@@ -119,10 +128,7 @@ export default function StageSelect({ stages, onStageSelect, onBack }: StageSele
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
-          
-          {/* <span className="text-white font-medium">
-            Page {currentPage + 1} of {totalPages}
-          </span> */}
+        
           
           <button
             onClick={() => handlePageChange('next')}
